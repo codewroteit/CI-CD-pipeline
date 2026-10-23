@@ -1,42 +1,75 @@
-#instruction sheet for our CI robot
 name: CI Pipeline
 
 on:
- push:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write 
+  packages: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: "3.14"
-
-    - name: Install dependencies
-      run: pip install fastapi pytest httpx
-
-    - name: Run tests
-      run: python -m pytest
-
-    - name: log in to Github Container Registry
-      uses: docker/login-action@v3
+    - run: pip install fastapi pytest httpx
+    - run: python -m pytest
+    - uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v6
+    - uses: docker/build-push-action@v6
       with:
-         context: .
-         push: true
-         tags: ghcr.io/${{ github.repository_owner }}/taskmanagement-app:latest
+        context: .
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository_owner }}/taskmanagement-app:${{ github.sha }}
+          ghcr.io/${{ github.repository_owner }}/taskmanagement-app:latest
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: helm/kind-action@v1
+      with:
+        cluster_name: demo
+
+    - name: Build v1 and load into kind
+      run: |
+        docker build -t taskmanagement-app:v1 .
+        kind load docker-image taskmanagement-app:v1 --name demo
+
+    - name: Deploy v1
+      run: |
+        sed "s/IMAGE_TAG/v1/" k8s/deployment.yaml | kubectl apply -f -
+        kubectl apply -f k8s/service.yaml
+        kubectl rollout status deployment/taskmanagement-app --timeout=90s
+
+    - name: Deploy v2 (broken health check)
+      id: v2
+      continue-on-error: true
+      run: |
+        docker tag taskmanagement-app:v1 taskmanagement-app:v2
+        kind load docker-image taskmanagement-app:v2 --name demo
+        sed -e "s/IMAGE_TAG/v2/" -e "s#/health#/broken#" k8s/deployment.yaml | kubectl apply -f -
+        kubectl rollout status deployment/taskmanagement-app --timeout=60s
+
+    - name: Rollback to previous version
+      if: steps.v2.outcome == 'failure'
+      run: |
+        echo "v2 failed health check, rolling back"
+        kubectl rollout undo deployment/taskmanagement-app
+        kubectl rollout status deployment/taskmanagement-app --timeout=90s
+
+    - name: Verify running version
+      run: |
+        kubectl get deployment taskmanagement-app -o jsonpath='{.spec.template.spec.containers[0].image}'
+        echo
+        kubectl get pods

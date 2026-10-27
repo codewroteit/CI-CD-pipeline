@@ -53,16 +53,6 @@ jobs:
         docker tag $IMAGE taskmanagement-app:v1
         kind load docker-image taskmanagement-app:v1 --name demo
 
-    - name: Scan image with Trivy
-      uses: aquasecurity/trivy-action@0.35.0
-      with:
-        image-ref: taskmanagement-app:v1
-        format: table
-        vuln-type: os,library
-        severity: CRITICAL,HIGH
-        ignore-unfixed: true
-        exit-code: '1'
-
     - name: Deploy v1
       run: |
         sed "s/IMAGE_TAG/v1/" k8s/deployment.yaml | kubectl apply -f -

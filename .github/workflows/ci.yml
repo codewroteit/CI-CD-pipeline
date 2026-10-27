@@ -41,9 +41,17 @@ jobs:
       with:
         cluster_name: demo
 
-    - name: Build v1 and load into kind
+       - uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull published image and load into kind
       run: |
-        docker build -t taskmanagement-app:v1 .
+        IMAGE=ghcr.io/${{ github.repository_owner }}/taskmanagement-app:${{ github.sha }}
+        docker pull $IMAGE
+        docker tag $IMAGE taskmanagement-app:v1
         kind load docker-image taskmanagement-app:v1 --name demo
 
     - name: Deploy v1

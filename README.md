@@ -1,3 +1,5 @@
+![CI Pipeline](https://github.com/codewroteit/CI-CD-pipeline/actions/workflows/ci.yml/badge.svg)
+
 # TaskManagement CI/CD Pipeline
 
 An automated pipeline that takes code from a push to a running application with no manual steps. It tests the code, builds a Docker image, deploys to Kubernetes, checks the app's health, and rolls back automatically if the check fails.
@@ -10,7 +12,7 @@ push to main → test → build image → deploy v1 → deploy v2 → health che
 |---|---|
 | Test | Runs the pytest suite. If a test fails, the deploy job never runs. |
 | Publish | Builds the Docker image and pushes it to GitHub Container Registry, tagged with the commit SHA and `latest`. |
-| Deploy v1 | Starts a temporary kind (Kubernetes in Docker) cluster, loads the image, and applies the manifests in `k8s/`. |
+| Deploy v1 | Starts a temporary kind (Kubernetes in Docker) cluster, pulls the published image instead of building one, and applies the manifests in `k8s/`. |
 | Deploy v2 | Deploys a deliberately broken version whose readiness probe points at a non-existent path. |
 | Rollback | When the v2 rollout exceeds its deadline, `kubectl rollout undo` restores v1. |
 | Verify | Prints the running image and pods, confirming v1 is serving. |
@@ -49,4 +51,3 @@ A small FastAPI service with three endpoints:
 ## Limitations
 
 - The kind cluster exists only for the length of one workflow run. The rollback is therefore a same-run demonstration (deploy v1, deploy broken v2, roll back), not a persistent environment.
-- The image published to GHCR is not the one deployed. The deploy job builds and loads its own image into kind.

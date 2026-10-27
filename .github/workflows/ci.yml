@@ -73,6 +73,7 @@ jobs:
       if: steps.v2.outcome == 'failure'
       run: |
         echo "v2 failed health check, rolling back"
+        echo "### Rollback triggered: v2 failed its health check, v1 restored" >> $GITHUB_STEP_SUMMARY
         kubectl rollout undo deployment/taskmanagement-app
         kubectl rollout status deployment/taskmanagement-app --timeout=90s
 

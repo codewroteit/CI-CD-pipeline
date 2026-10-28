@@ -1,3 +1,15 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
   test:
     runs-on: ubuntu-latest
     steps:
@@ -23,6 +35,7 @@
         tags: |
           ghcr.io/${{ github.repository_owner }}/taskmanagement-app:${{ github.sha }}
           ghcr.io/${{ github.repository_owner }}/taskmanagement-app:latest
+
   deploy:
     needs: test
     runs-on: ubuntu-latest

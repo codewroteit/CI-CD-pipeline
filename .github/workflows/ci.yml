@@ -53,6 +53,15 @@ jobs:
         docker tag $IMAGE taskmanagement-app:v1
         kind load docker-image taskmanagement-app:v1 --name demo
 
+       - name: Create dashboard secret
+      env:
+        DASH_USER: ${{ secrets.DASH_USER }}
+        DASH_PASS: ${{ secrets.DASH_PASS }}
+      run: |
+        kubectl create secret generic dashboard-auth \
+          --from-literal=DASH_USER="$DASH_USER" \
+          --from-literal=DASH_PASS="$DASH_PASS"     
+
     - name: Deploy v1
       run: |
         sed "s/IMAGE_TAG/v1/" k8s/deployment.yaml | kubectl apply -f -

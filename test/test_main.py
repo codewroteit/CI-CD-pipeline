@@ -1,3 +1,15 @@
+def test_dashboard_requires_login(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    monkeypatch.setenv("DASH_USER", "admin")
+    monkeypatch.setenv("DASH_PASS", "test-only-pass")
+    client = TestClient(app)
+    assert client.get("/dashboard").status_code == 401
+    assert client.get("/dashboard", auth=("admin", "wrong")).status_code == 401
+    r = client.get("/dashboard", auth=("admin", "test-only-pass"))
+    assert r.status_code == 200
+    assert "Pipeline" in r.text
+
 from fastapi.testclient import TestClient
 from app.main import app
 client = TestClient(app)

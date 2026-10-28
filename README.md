@@ -51,3 +51,14 @@ A small FastAPI service with three endpoints:
 ## Limitations
 
 - The kind cluster exists only for the length of one workflow run. The rollback is therefore a same-run demonstration (deploy v1, deploy broken v2, roll back), not a persistent environment.
+- The dashboard uses a single shared login. A production system would use per-user accounts or SSO.
+
+## Security
+
+- **Authentication:** the `/dashboard` page requires a username and password (HTTP Basic Auth). `/health` and `/version` stay open so Kubernetes probes work.
+- **Secrets management:** credentials are never in the code. They live in GitHub Actions Secrets, are created as a Kubernetes Secret at deploy time, and are read from environment variables.
+- **Fail closed:** if the credentials aren't set, nobody can log in.
+- **Dependency scanning:** `pip-audit` checks Python dependencies for known vulnerabilities, and a vulnerable package fails the pipeline.
+- **Least privilege:** the workflow token only has `contents: read` and `packages: write`.
+- **Quality gate:** a failing test stops the pipeline before any image is deployed.
+- **Branch rule:** `main` can't be force-pushed or deleted.

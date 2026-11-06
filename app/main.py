@@ -1,20 +1,11 @@
-from contextlib import asynccontextmanager
+import os
+import secrets
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from pydantic import BaseModel, Field
 
-from app.db import add_user, change_password, check_login, init_db
-
-
-@asynccontextmanager
-async def lifespan(app):
-    init_db()
-    yield
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 security = HTTPBasic()
 
 
@@ -34,13 +25,20 @@ def version():
 
 
 def require_login(credentials: HTTPBasicCredentials = Depends(security)):
-    if not check_login(credentials.username, credentials.password):
+    user = os.getenv("DASH_USER", "")
+    password = os.getenv("DASH_PASS", "")
+    ok = (
+        bool(user and password)
+        and secrets.compare_digest(credentials.username.encode(), user.encode())
+        and secrets.compare_digest(credentials.password.encode(), password.encode())
+    )
+    if not ok:
         raise HTTPException(
             status_code=401,
             detail="Unauthorized",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return credentials.username
+
 
 DASHBOARD = """<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -131,29 +129,6 @@ checkApp();setInterval(checkApp,5000);loadPipeline();
 </script></body></html>"""
 
 
-
 @app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 def dashboard():
     return DASHBOARD
-
-
-class PasswordChange(BaseModel):
-    new_password: str = Field(min_length=8)
-
-
-class NewUser(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=8)
-
-
-@app.post("/change-password")
-def change_pw(body: PasswordChange, username: str = Depends(require_login)):
-    change_password(username, body.new_password)
-    return {"message": "password changed"}
-
-
-@app.post("/users", status_code=201)
-def create_user(body: NewUser, _: str = Depends(require_login)):
-    if not add_user(body.username, body.password):
-        raise HTTPException(status_code=409, detail="User already exists")
-    return {"message": "user created"}
